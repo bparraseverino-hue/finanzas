@@ -61,7 +61,9 @@ Sin señal, el movimiento queda “por subir” en el teléfono y se envía solo
 - **Mi mes** (primera pestaña): elige el mes en la celda *Mes* ("Actual" muestra siempre el mes en curso).
   Muestra ingresos, gastos, saldo, el checklist de gastos fijos y los movimientos de ese mes,
   del más nuevo al más antiguo. Ya no hace falta ocultar filas en *Transacciones*.
-- **Gastos fijos**: la lista de tus pagos mensuales. Un fijo cuenta como pagado cuando en ese mes
-  hay un gasto de la misma **categoría** cuya descripción contiene alguna de sus **palabras clave**.
+- **Gastos Fijos** (tabla en la hoja *Categorías*, columnas E a I): tus pagos mensuales.
+  Un fijo cuenta como pagado cuando en ese mes hay un gasto de la misma **categoría** cuya
+  descripción contiene alguna de sus **palabras clave**. El **estimado** de cada mes es lo que
+  pagaste por ese fijo el mes anterior; si el mes anterior no hubo pago, se usa el *monto base*.
   El *día de pago* es opcional; si lo pones, el fijo se marca "Atrasado" cuando ya pasó.
   La app muestra la misma lista en el Resumen y con un toque registra el pago con el monto estimado.

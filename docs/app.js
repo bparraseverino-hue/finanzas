@@ -125,15 +125,20 @@
 
   // Igual que la hoja "Mi mes": misma categoría y alguna palabra clave en la descripción.
   function fijosDelMes(y, m) {
-    const mes = inMonth(allItems(), y, m).filter((i) => i.tipo === 'Gasto');
+    const gastos = allItems().filter((i) => i.tipo === 'Gasto');
+    const prev = new Date(y, m - 2, 1);
+    const py = prev.getFullYear(), pm = prev.getMonth() + 1;
     const esActual = y === now.getFullYear() && m === now.getMonth() + 1;
     return S.fijos.map((f) => {
       const claves = (f.claves || f.nombre).split(',').map((k) => norm(k)).filter(Boolean);
       const rx = new RegExp('\\b(' + claves.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\b');
-      const pagos = mes.filter((i) => norm(i.categoria) === norm(f.categoria) && rx.test(norm(i.descripcion)));
-      const pagado = pagos.reduce((s, i) => s + i.efectivo, 0);
-      const estado = pagos.length ? 'pagado' : esActual && f.dia && now.getDate() > f.dia ? 'atrasado' : 'pendiente';
-      return { ...f, pagado, estado };
+      const match = (i) => norm(i.categoria) === norm(f.categoria) && rx.test(norm(i.descripcion));
+      const suma = (yy, mm) => gastos.filter((i) => i.y === yy && i.m === mm && match(i)).reduce((s, i) => s + i.efectivo, 0);
+      const pagado = suma(y, m);
+      const anterior = suma(py, pm);
+      const estimado = anterior > 0 ? anterior : f.base ?? f.estimado ?? null; // lo pagado el mes anterior
+      const estado = pagado > 0 ? 'pagado' : esActual && f.dia && now.getDate() > f.dia ? 'atrasado' : 'pendiente';
+      return { ...f, pagado, estimado, estado };
     });
   }
 
@@ -732,8 +737,8 @@
     morecats: () => { S.showAllCats = !S.showAllCats; render(); },
     morefijos: () => { S.showAllFijos = !S.showAllFijos; render(); },
     fijo: (el) => {
-      const f = S.fijos.find((x) => x.nombre === el.dataset.n); if (!f) return;
       const { y, m } = S.ym;
+      const f = fijosDelMes(y, m).find((x) => x.nombre === el.dataset.n); if (!f) return;
       const esActual = y === now.getFullYear() && m === now.getMonth() + 1;
       const fecha = esActual ? today() : `${y}-${pad(m)}-${pad(Math.min(f.dia || 1, 28))}`;
       openAdd({ categoria: f.categoria, descripcion: f.nombre, monto: f.estimado ? String(f.estimado) : '', fecha });
@@ -855,12 +860,12 @@
       const d = this.data();
       if (action === 'ping') return { ok: true };
       if (action === 'list') return { ok: true, items: d, categorias: DEFAULT_CATS, fijos: [
-        { nombre: 'Arriendo', categoria: 'Vivienda', estimado: 450000, claves: 'arriendo', dia: 5 },
-        { nombre: 'Internet hogar', categoria: 'Servicios básicos (luz, agua, internet)', estimado: 24990, claves: 'internet', dia: 10 },
-        { nombre: 'Cuenta de luz', categoria: 'Servicios básicos (luz, agua, internet)', estimado: 32000, claves: 'luz', dia: 15 },
-        { nombre: 'Ahorro mensual', categoria: 'Ahorro e inversión', estimado: 150000, claves: 'ahorro', dia: 25 },
-        { nombre: 'Streaming', categoria: 'Ocio y entretenimiento', estimado: 9990, claves: 'streaming', dia: 28 },
-        { nombre: 'Gimnasio', categoria: 'Salud', estimado: 25000, claves: 'gimnasio, gym', dia: 12 },
+        { nombre: 'Arriendo', categoria: 'Vivienda', base: 450000, claves: 'arriendo', dia: 5 },
+        { nombre: 'Internet hogar', categoria: 'Servicios básicos (luz, agua, internet)', base: 24990, claves: 'internet', dia: 10 },
+        { nombre: 'Cuenta de luz', categoria: 'Servicios básicos (luz, agua, internet)', base: 32000, claves: 'luz', dia: 15 },
+        { nombre: 'Ahorro mensual', categoria: 'Ahorro e inversión', base: 150000, claves: 'ahorro', dia: 25 },
+        { nombre: 'Streaming', categoria: 'Ocio y entretenimiento', base: 9990, claves: 'streaming', dia: 28 },
+        { nombre: 'Gimnasio', categoria: 'Salud', base: 25000, claves: 'gimnasio, gym', dia: 12 },
       ] };
       if (action === 'add') {
         const it = p.item; const [y, m] = it.fecha.split('-').map(Number);

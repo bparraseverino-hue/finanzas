@@ -1,6 +1,6 @@
 /**
  * Backend de "Mis Finanzas" para tu hoja de finanzas en Google Sheets.
- * Escribe en "Transacciones" y lee "Categorías" y "Gastos fijos".
+ * Escribe en "Transacciones" y lee "Categorías" (categorías y tabla de Gastos Fijos).
  *
  * Se pega en: Hoja de cálculo > Extensiones > Apps Script.
  * 1) Ejecuta la función `configurar` una vez (te muestra tu clave secreta en el registro).
@@ -12,7 +12,6 @@
 
 const HOJA_TRANSACCIONES = 'Transacciones';
 const HOJA_CATEGORIAS = 'Categorías';
-const HOJA_FIJOS = 'Gastos fijos';
 const COLUMNAS = 12; // A..L
 const FILA_MODELO = 2; // fila desde la que se copian formatos y validaciones
 
@@ -124,16 +123,16 @@ function categorias_(ss) {
   return out;
 }
 
-/** Lista de la hoja "Gastos fijos": nombre, categoría, monto estimado, palabras clave, día de pago. */
+/** Tabla "Gastos Fijos" de la hoja Categorías (columnas E:I): nombre, categoría, monto base, palabras clave, día de pago. */
 function fijos_(ss) {
-  const sh = ss.getSheetByName(HOJA_FIJOS);
+  const sh = ss.getSheetByName(HOJA_CATEGORIAS);
   if (!sh || sh.getLastRow() < 2) return [];
-  return sh.getRange(2, 1, sh.getLastRow() - 1, 5).getValues()
+  return sh.getRange(2, 5, sh.getLastRow() - 1, 5).getValues()
     .filter((v) => String(v[0]).trim())
-    .map(([nombre, categoria, estimado, claves, dia]) => ({
+    .map(([nombre, categoria, base, claves, dia]) => ({
       nombre: String(nombre).trim(),
       categoria: String(categoria || '').trim(),
-      estimado: estimado === '' ? null : num_(estimado),
+      base: base === '' ? null : num_(base),
       claves: String(claves || '').trim(),
       dia: dia === '' ? null : Number(dia) || null,
     }));
