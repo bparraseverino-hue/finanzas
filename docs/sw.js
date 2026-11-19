@@ -1,5 +1,5 @@
 // Guarda la app en el teléfono para que abra al instante y sin señal.
-const CACHE = 'finanzas-v3';
+const CACHE = 'finanzas-v4';
 const SHELL = ['./', 'index.html', 'app.js', 'styles.css', 'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {

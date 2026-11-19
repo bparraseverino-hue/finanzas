@@ -130,8 +130,9 @@
     const py = prev.getFullYear(), pm = prev.getMonth() + 1;
     const esActual = y === now.getFullYear() && m === now.getMonth() + 1;
     return S.fijos.map((f) => {
-      const claves = (f.claves || f.nombre).split(',').map((k) => norm(k)).filter(Boolean);
-      const rx = new RegExp('\\b(' + claves.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\b');
+      // El nombre del fijo siempre cuenta; cada palabra clave vale al inicio de una palabra ("super" → "supermercado").
+      const claves = (f.nombre + ',' + (f.claves || '')).split(',').map((k) => norm(k)).filter(Boolean);
+      const rx = new RegExp('\\b(' + claves.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')');
       const match = (i) => norm(i.categoria) === norm(f.categoria) && rx.test(norm(i.descripcion));
       const suma = (yy, mm) => gastos.filter((i) => i.y === yy && i.m === mm && match(i)).reduce((s, i) => s + i.efectivo, 0);
       const pagos = gastos.filter((i) => i.y === y && i.m === m && match(i)).sort((a, b) => b.ts - a.ts);

@@ -63,7 +63,7 @@ Sin señal, el movimiento queda “por subir” en el teléfono y se envía solo
   del más nuevo al más antiguo. Ya no hace falta ocultar filas en *Transacciones*.
 - **Gastos Fijos** (tabla en la hoja *Categorías*, columnas E a I): tus pagos mensuales.
   Un fijo cuenta como pagado cuando en ese mes hay un gasto de la misma **categoría** cuya
-  descripción contiene alguna de sus **palabras clave**. El **estimado** de cada mes es lo que
+  descripción contiene el nombre del fijo o alguna de sus **palabras clave** (basta con el inicio de una palabra: "super" reconoce "supermercado"). El **estimado** de cada mes es lo que
   pagaste por ese fijo el mes anterior; si el mes anterior no hubo pago, se usa el *monto base*.
   El *día de pago* es opcional; si lo pones, el fijo se marca "Atrasado" cuando ya pasó.
   La app muestra la misma lista en el Resumen y con un toque registra el pago con el monto estimado.
