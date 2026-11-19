@@ -326,3 +326,6 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .fijo .go { width: 28px; height: 28px; border-radius: 50%; background: var(--card-2); display: grid; place-items: center; color: var(--ink); }
 .fijo .go svg { width: 15px; height: 15px; }
 .fijo:not([disabled]):active { background: var(--card-2); border-radius: 12px; }
+.fijo.done .n { color: var(--ink-2); }
+.fijo.done .a { color: var(--muted); font-weight: 500; }
+.fijo.done .go { background: transparent; color: var(--muted); }

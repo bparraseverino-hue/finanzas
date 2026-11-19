@@ -59,6 +59,8 @@ function doPost(e) {
         return json_(Object.assign({ ok: true }, listar_()));
       case 'add':
         return json_(Object.assign({ ok: true }, conBloqueo_(() => agregar_(req.item || {}, req.uid))));
+      case 'edit':
+        return json_(Object.assign({ ok: true }, conBloqueo_(() => editar_(req))));
       case 'update':
         return json_(Object.assign({ ok: true }, conBloqueo_(() => actualizarEstado_(req))));
       case 'delete':
@@ -147,21 +149,7 @@ function agregar_(item, uid) {
     if (previa) return { row: Number(previa), duplicado: true };
   }
 
-  const tipo = item.tipo === 'Ingreso' ? 'Ingreso' : item.tipo === 'Gasto' ? 'Gasto' : null;
-  if (!tipo) throw new Error('Tipo inválido');
-  const monto = Math.round(Number(item.monto));
-  if (!(monto > 0)) throw new Error('Monto inválido');
-  const categoria = String(item.categoria || '').trim();
-  if (!categoria) throw new Error('Falta la categoría');
-  const fecha = fechaDesdeIso_(item.fecha);
-
-  const conQuien = String(item.conQuien || '').trim();
-  let miParte = '';
-  let estado = '';
-  if (conQuien) {
-    miParte = Math.max(0, Math.min(monto, Math.round(Number(item.miParte) || 0)));
-    estado = ['Pendiente', 'Cobrado', 'N/A'].indexOf(item.estado) >= 0 ? item.estado : 'Pendiente';
-  }
+  const { fecha, tipo, categoria, descripcion, monto, conQuien, miParte, estado } = normalizar_(item);
 
   const ss = SpreadsheetApp.getActive();
   const sh = ss.getSheetByName(HOJA_TRANSACCIONES);
@@ -176,7 +164,7 @@ function agregar_(item, uid) {
   // Valores que escribe la app (las fórmulas se copian de la fila modelo para respetar
   // el idioma de la hoja, que usa ";" como separador).
   sh.getRange(r, 1).setValue(fecha);
-  sh.getRange(r, 4, 1, 6).setValues([[tipo, categoria, String(item.descripcion || '').trim(), monto, conQuien, miParte]]);
+  sh.getRange(r, 4, 1, 6).setValues([[tipo, categoria, descripcion, monto, conQuien, miParte]]);
   sh.getRange(r, 11).setValue(estado);
   const P = SpreadsheetApp.CopyPasteType.PASTE_FORMULA;
   sh.getRange(FILA_MODELO, 2, 1, 2).copyTo(sh.getRange(r, 2, 1, 2), P, false); // B Año, C Mes
@@ -186,6 +174,35 @@ function agregar_(item, uid) {
 
   if (uid) cache.put('uid_' + uid, String(r), 21600);
   return { row: r };
+}
+
+/** Corrige un movimiento existente (fecha, tipo, categoría, descripción, monto y datos de compartido). */
+function editar_(req) {
+  const sh = SpreadsheetApp.getActive().getSheetByName(HOJA_TRANSACCIONES);
+  const r = verificarFila_(sh, req);
+  const { fecha, tipo, categoria, descripcion, monto, conQuien, miParte, estado } = normalizar_(req.item || {});
+  sh.getRange(r, 1).setValue(fecha);
+  sh.getRange(r, 4, 1, 6).setValues([[tipo, categoria, descripcion, monto, conQuien, miParte]]);
+  sh.getRange(r, 11).setValue(estado);
+  SpreadsheetApp.flush();
+  return { row: r };
+}
+
+function normalizar_(item) {
+  const tipo = item.tipo === 'Ingreso' ? 'Ingreso' : item.tipo === 'Gasto' ? 'Gasto' : null;
+  if (!tipo) throw new Error('Tipo inválido');
+  const monto = Math.round(Number(item.monto));
+  if (!(monto > 0)) throw new Error('Monto inválido');
+  const categoria = String(item.categoria || '').trim();
+  if (!categoria) throw new Error('Falta la categoría');
+  const conQuien = String(item.conQuien || '').trim();
+  let miParte = '';
+  let estado = '';
+  if (conQuien) {
+    miParte = Math.max(0, Math.min(monto, Math.round(Number(item.miParte) || 0)));
+    estado = ['Pendiente', 'Cobrado', 'N/A'].indexOf(item.estado) >= 0 ? item.estado : 'Pendiente';
+  }
+  return { fecha: fechaDesdeIso_(item.fecha), tipo, categoria, descripcion: String(item.descripcion || '').trim(), monto, conQuien, miParte, estado };
 }
 
 function actualizarEstado_(req) {

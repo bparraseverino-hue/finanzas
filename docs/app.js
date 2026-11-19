@@ -134,11 +134,12 @@
       const rx = new RegExp('\\b(' + claves.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\b');
       const match = (i) => norm(i.categoria) === norm(f.categoria) && rx.test(norm(i.descripcion));
       const suma = (yy, mm) => gastos.filter((i) => i.y === yy && i.m === mm && match(i)).reduce((s, i) => s + i.efectivo, 0);
-      const pagado = suma(y, m);
+      const pagos = gastos.filter((i) => i.y === y && i.m === m && match(i)).sort((a, b) => b.ts - a.ts);
+      const pagado = pagos.reduce((s, i) => s + i.efectivo, 0);
       const anterior = suma(py, pm);
       const estimado = anterior > 0 ? anterior : f.base ?? f.estimado ?? null; // lo pagado el mes anterior
-      const estado = pagado > 0 ? 'pagado' : esActual && f.dia && now.getDate() > f.dia ? 'atrasado' : 'pendiente';
-      return { ...f, pagado, estimado, estado };
+      const estado = pagos.length ? 'pagado' : esActual && f.dia && now.getDate() > f.dia ? 'atrasado' : 'pendiente';
+      return { ...f, pagado, estimado, estado, pagos };
     });
   }
 
@@ -314,11 +315,11 @@
       <div class="ratio" role="img" aria-label="${pct}% de los gastos fijos pagados"><span style="width:${pct}%;background:var(--ingreso)"></span></div>
       <div class="ratio-cap">${falta ? `Falta pagar aprox. <b class="num">${fmt(falta)}</b>` : '¡Todos los fijos del mes pagados! 🎉'}</div>
       <div style="margin-top:8px">${rows.map((f) => `
-        <button class="fijo" data-a="fijo" data-n="${esc(f.nombre)}" ${f.estado === 'pagado' ? 'disabled' : ''}>
+        <button class="fijo ${f.estado === 'pagado' ? 'done' : ''}" data-a="fijo" data-n="${esc(f.nombre)}">
           <span class="st ${f.estado}">${f.estado === 'pagado' ? '✓' : f.estado === 'atrasado' ? '!' : ''}</span>
           <span class="n">${esc(f.nombre)}<small>${f.estado === 'pagado' ? 'Pagado' : f.estado === 'atrasado' ? `Atrasado · vencía el ${f.dia}` : f.dia ? `Vence el ${f.dia}` : 'Pendiente'}</small></span>
           <span class="a num">${f.estado === 'pagado' ? fmt(f.pagado) : f.estimado ? fmt(f.estimado) : '—'}</span>
-          ${f.estado === 'pagado' ? '' : `<span class="go">${ICON.plus}</span>`}
+          <span class="go">${f.estado === 'pagado' ? ICON.right : ICON.plus}</span>
         </button>`).join('')}</div>
       ${fs.length > 6 ? `<button class="more" data-a="morefijos">${S.showAllFijos ? 'Ver menos' : `Ver los ${fs.length} fijos`}</button>` : ''}
     </section>`;
@@ -424,7 +425,7 @@
       if (i.estado === 'Pendiente') { p.pend += i.meDeben; p.items.push(i); }
       else if (i.estado === 'Cobrado') p.cobr += i.meDeben;
     }
-    const ps = [...map.values()].sort((a, b) => b.pend - a.pend || b.cobr - a.cobr);
+    const ps = [...map.values()].filter((p) => p.pend > 0).sort((a, b) => b.pend - a.pend); // solo quien te debe algo
     const total = ps.reduce((s, p) => s + p.pend, 0);
     const cards = ps.map((p) => {
       const open = S.openPerson === p.k;
@@ -445,7 +446,7 @@
     return `${header('Cobros')}${banner()}
       <section class="card hero"><div class="label">Total que te deben</div><div class="big num" style="margin-bottom:4px">${fmt(total)}</div>
         <div class="ratio-cap" style="margin-top:0">Se calcula con “Con quién”, “Mi parte” y “Estado” de tu hoja.</div></section>
-      ${ps.length ? cards : '<div class="card empty"><span class="e">🤝</span>Cuando registres un gasto compartido aparecerá aquí.</div>'}`;
+      ${ps.length ? cards : '<div class="card empty"><span class="e">🤝</span>Nadie te debe nada por ahora.<br>Cuando registres un gasto compartido pendiente aparecerá aquí.</div>'}`;
   }
 
   // ----- Ajustes
@@ -527,7 +528,7 @@
     A = { tipo: 'Gasto', monto: '', categoria: null, descripcion: '', fecha: today(), compartido: false, conQuien: '', parte: 'nada', miParte: '', estado: 'Pendiente', ...pre };
     const sheet = openSheet(`
       <div class="sbar"><button class="l" data-a="close">Cancelar</button>
-        <div class="seg tipo" id="a-tipo"></div><span class="r"></span></div>
+        <div class="seg tipo" id="a-tipo"></div><span class="r" style="font-weight:600;font-size:15px">${A.editKey ? 'Editando' : ''}</span></div>
       <div class="sbody">
         <div class="amount"><div class="v num" id="a-amount"></div></div>
         <div class="chips dates" id="a-dates"></div>
@@ -642,7 +643,7 @@
     const b = $('#a-save');
     const ok = Number(A.monto) > 0 && A.categoria && (!A.compartido || A.conQuien.trim());
     b.disabled = !ok;
-    b.textContent = !Number(A.monto) ? 'Ingresa un monto' : !A.categoria ? 'Elige una categoría' : A.compartido && !A.conQuien.trim() ? '¿Con quién?' : `Guardar ${A.tipo.toLowerCase()} de ${fmt(Number(A.monto))}`;
+    b.textContent = !Number(A.monto) ? 'Ingresa un monto' : !A.categoria ? 'Elige una categoría' : A.compartido && !A.conQuien.trim() ? '¿Con quién?' : A.editKey ? `Guardar cambios · ${fmt(Number(A.monto))}` : `Guardar ${A.tipo.toLowerCase()} de ${fmt(Number(A.monto))}`;
   }
   function saveAdd() {
     const monto = Number(A.monto);
@@ -653,6 +654,7 @@
       item.miParte = miParteVal();
       item.estado = A.estado;
     }
+    if (A.editKey) return saveEdit(A.editKey, item);
     S.queue.push({ uid: uid(), item, at: Date.now() });
     save();
     const [y, m] = A.fecha.split('-').map(Number);
@@ -661,6 +663,47 @@
     render();
     toast(`${A.tipo} de ${fmt(monto)} guardado ✓`);
     sync();
+  }
+
+  async function saveEdit(key, item) {
+    const i = findItem(key); if (!i) { closeSheet(); return; }
+    const [y, m] = item.fecha.split('-').map(Number);
+    if (i.pending) {
+      const op = S.queue.find((o) => 'q:' + o.uid === key);
+      if (op) op.item = item;
+      save(); S.ym = { y, m }; closeSheet(); render(); toast('Cambios guardados ✓'); sync();
+      return;
+    }
+    const btn = $('#a-save'); btn.disabled = true; btn.textContent = 'Guardando…';
+    try {
+      await api('edit', { row: i.row, descripcion: i.descripcion, monto: i.monto, item });
+      const raw = S.items.find((x) => x.row === i.row);
+      if (raw) Object.assign(raw, item, { anio: y, mes: m, conQuien: item.conQuien || '', miParte: item.conQuien ? item.miParte : null, meDeben: item.conQuien ? item.monto - item.miParte : null, estado: item.estado || '' });
+      save(); S.ym = { y, m }; closeSheet(); render(); toast('Cambios guardados en tu hoja ✓'); sync();
+    } catch (e) {
+      btn.disabled = false; updSave(); toast(e.message);
+    }
+  }
+  function openEdit(key) {
+    const i = findItem(key); if (!i) return;
+    const fecha = i.fecha || `${i.y || now.getFullYear()}-${pad(i.m || 1)}-01`;
+    let parte = 'nada', miParte = '';
+    if (i.shared) {
+      // "Mi parte" vacía en la hoja = te deben todo (igual que la columna "Me deben").
+      if (i.miParte === null || i.miParte === 0) parte = 'nada';
+      else if (i.miParte === Math.round(i.monto / 2)) parte = 'mitad';
+      else { parte = 'otro'; miParte = String(i.miParte); }
+    }
+    openAdd({ editKey: key, tipo: i.tipo === 'Ingreso' ? 'Ingreso' : 'Gasto', monto: String(i.monto), categoria: i.categoria, descripcion: i.descripcion, fecha,
+      compartido: i.shared, conQuien: i.shared ? i.conQuien : '', parte, miParte, estado: i.estado || 'Pendiente' });
+  }
+  function openPagos(f) {
+    openSheet(`
+      <div class="sbar"><span></span><b>${esc(f.nombre)}</b><button class="r" data-a="close" style="color:var(--ink-2);padding:6px 4px">Cerrar</button></div>
+      <div class="sbody">
+        <p class="note" style="margin:4px 2px 12px">Estos movimientos cuentan como pago de este fijo en ${MESES[S.ym.m - 1]}. Toca uno para editarlo o eliminarlo.</p>
+        <div class="list">${f.pagos.map(txRow).join('')}</div>
+      </div>`, 'detail');
   }
 
   // ----- Detalle
@@ -682,6 +725,7 @@
         <div class="stack">
           ${i.shared && !i.pending && i.estado !== 'Cobrado' ? `<button class="btn" data-a="cobrar" data-k="${esc(i.key)}">Marcar como cobrado</button>` : ''}
           ${i.shared && !i.pending && i.estado === 'Cobrado' ? `<button class="btn secondary" data-a="descobrar" data-k="${esc(i.key)}">Volver a pendiente</button>` : ''}
+          <button class="btn secondary" data-a="edit" data-k="${esc(i.key)}">Editar monto, fecha u otros datos</button>
           <button class="btn danger" data-a="delete" data-k="${esc(i.key)}">Eliminar movimiento</button>
         </div>
       </div>`, 'detail');
@@ -739,6 +783,8 @@
     fijo: (el) => {
       const { y, m } = S.ym;
       const f = fijosDelMes(y, m).find((x) => x.nombre === el.dataset.n); if (!f) return;
+      if (f.pagos.length === 1) return openDetail(f.pagos[0].key);
+      if (f.pagos.length > 1) return openPagos(f);
       const esActual = y === now.getFullYear() && m === now.getMonth() + 1;
       const fecha = esActual ? today() : `${y}-${pad(m)}-${pad(Math.min(f.dia || 1, 28))}`;
       openAdd({ categoria: f.categoria, descripcion: f.nombre, monto: f.estimado ? String(f.estimado) : '', fecha });
@@ -749,6 +795,7 @@
     cobrar: (el) => { closeSheet(); setEstado(el.dataset.k, 'Cobrado'); },
     descobrar: (el) => { closeSheet(); setEstado(el.dataset.k, 'Pendiente'); },
     delete: (el) => deleteItem(el.dataset.k),
+    edit: (el) => openEdit(el.dataset.k),
     // agregar
     tipo: (el) => { A.tipo = el.dataset.t; A.categoria = null; A.compartido = false; updAll(); },
     key: (el) => {
@@ -875,7 +922,12 @@
       }
       const idx = d.findIndex((x) => x.row === p.row);
       if (idx < 0) throw new Error('No encontrado');
+      if (d[idx].descripcion !== p.descripcion || d[idx].monto !== p.monto) throw new Error('La hoja cambió desde la última sincronización. Actualiza e intenta de nuevo.');
       if (action === 'update') { d[idx].estado = p.estado; }
+      if (action === 'edit') {
+        const it = p.item; const [y, m] = it.fecha.split('-').map(Number); const shared = !!it.conQuien;
+        Object.assign(d[idx], it, { anio: y, mes: m, conQuien: it.conQuien || '', miParte: shared ? it.miParte : null, meDeben: shared ? it.monto - it.miParte : null, estado: it.estado || '' });
+      }
       if (action === 'delete') { d.splice(idx, 1); d.forEach((x, i) => (x.row = i + 2)); }
       store.set('fin.demo', d); return { ok: true };
     },
