@@ -1,5 +1,6 @@
 /**
  * Backend de "Mis Finanzas" para tu hoja de finanzas en Google Sheets.
+ * Escribe en "Transacciones" y lee "Categorías" y "Gastos fijos".
  *
  * Se pega en: Hoja de cálculo > Extensiones > Apps Script.
  * 1) Ejecuta la función `configurar` una vez (te muestra tu clave secreta en el registro).
@@ -11,6 +12,7 @@
 
 const HOJA_TRANSACCIONES = 'Transacciones';
 const HOJA_CATEGORIAS = 'Categorías';
+const HOJA_FIJOS = 'Gastos fijos';
 const COLUMNAS = 12; // A..L
 const FILA_MODELO = 2; // fila desde la que se copian formatos y validaciones
 
@@ -104,7 +106,7 @@ function listar_() {
     });
   }
 
-  return { items: items, categorias: categorias_(ss), zona: tz };
+  return { items: items, categorias: categorias_(ss), fijos: fijos_(ss), zona: tz };
 }
 
 function categorias_(ss) {
@@ -120,6 +122,21 @@ function categorias_(ss) {
     else out.gasto.push(nombre); // "Gasto", "Gasto Variable" o categoría nueva sin tipo
   });
   return out;
+}
+
+/** Lista de la hoja "Gastos fijos": nombre, categoría, monto estimado, palabras clave, día de pago. */
+function fijos_(ss) {
+  const sh = ss.getSheetByName(HOJA_FIJOS);
+  if (!sh || sh.getLastRow() < 2) return [];
+  return sh.getRange(2, 1, sh.getLastRow() - 1, 5).getValues()
+    .filter((v) => String(v[0]).trim())
+    .map(([nombre, categoria, estimado, claves, dia]) => ({
+      nombre: String(nombre).trim(),
+      categoria: String(categoria || '').trim(),
+      estimado: estimado === '' ? null : num_(estimado),
+      claves: String(claves || '').trim(),
+      dia: dia === '' ? null : Number(dia) || null,
+    }));
 }
 
 // ---------- Escritura ----------
@@ -157,20 +174,15 @@ function agregar_(item, uid) {
   modelo.copyTo(destino, SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
   modelo.copyTo(destino, SpreadsheetApp.CopyPasteType.PASTE_DATA_VALIDATION, false);
 
-  destino.setValues([[
-    fecha,
-    '=IF(A' + r + '="","",YEAR(A' + r + '))',
-    '=IF(A' + r + '="","",MONTH(A' + r + '))',
-    tipo,
-    categoria,
-    String(item.descripcion || '').trim(),
-    monto,
-    conQuien,
-    miParte,
-    '=IF(H' + r + '<>"",G' + r + '-I' + r + ',"")',
-    estado,
-    '=IF(I' + r + '<>"",I' + r + ',G' + r + ')',
-  ]]);
+  // Valores que escribe la app (las fórmulas se copian de la fila modelo para respetar
+  // el idioma de la hoja, que usa ";" como separador).
+  sh.getRange(r, 1).setValue(fecha);
+  sh.getRange(r, 4, 1, 6).setValues([[tipo, categoria, String(item.descripcion || '').trim(), monto, conQuien, miParte]]);
+  sh.getRange(r, 11).setValue(estado);
+  const P = SpreadsheetApp.CopyPasteType.PASTE_FORMULA;
+  sh.getRange(FILA_MODELO, 2, 1, 2).copyTo(sh.getRange(r, 2, 1, 2), P, false); // B Año, C Mes
+  sh.getRange(FILA_MODELO, 10).copyTo(sh.getRange(r, 10), P, false); // J Me deben
+  sh.getRange(FILA_MODELO, 12).copyTo(sh.getRange(r, 12), P, false); // L Monto efectivo
   SpreadsheetApp.flush();
 
   if (uid) cache.put('uid_' + uid, String(r), 21600);

@@ -64,6 +64,7 @@
     cfg: store.get('fin.cfg', null), // {url, token} | {demo:true}
     items: store.get('fin.items', []),
     categorias: store.get('fin.cats', DEFAULT_CATS),
+    fijos: store.get('fin.fijos', []),
     queue: store.get('fin.queue', []),
     lastSync: store.get('fin.lastSync', null),
     view: 'resumen',
@@ -71,6 +72,7 @@
     filtro: 'todos',
     q: '',
     showAllCats: false,
+    showAllFijos: false,
     syncing: false,
     error: null,
     openPerson: null,
@@ -78,6 +80,7 @@
   const save = () => {
     store.set('fin.items', S.items);
     store.set('fin.cats', S.categorias);
+    store.set('fin.fijos', S.fijos);
     store.set('fin.queue', S.queue);
     store.set('fin.lastSync', S.lastSync);
   };
@@ -120,6 +123,20 @@
     return [...map.values()].sort((a, b) => b.last - a.last || b.n - a.n);
   }
 
+  // Igual que la hoja "Mi mes": misma categoría y alguna palabra clave en la descripción.
+  function fijosDelMes(y, m) {
+    const mes = inMonth(allItems(), y, m).filter((i) => i.tipo === 'Gasto');
+    const esActual = y === now.getFullYear() && m === now.getMonth() + 1;
+    return S.fijos.map((f) => {
+      const claves = (f.claves || f.nombre).split(',').map((k) => norm(k)).filter(Boolean);
+      const rx = new RegExp('\\b(' + claves.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\b');
+      const pagos = mes.filter((i) => norm(i.categoria) === norm(f.categoria) && rx.test(norm(i.descripcion)));
+      const pagado = pagos.reduce((s, i) => s + i.efectivo, 0);
+      const estado = pagos.length ? 'pagado' : esActual && f.dia && now.getDate() > f.dia ? 'atrasado' : 'pendiente';
+      return { ...f, pagado, estado };
+    });
+  }
+
   // ---------------------------------------------------------------- API
   async function api(action, payload = {}) {
     if (S.cfg && S.cfg.demo) return Demo.handle(action, payload);
@@ -158,6 +175,7 @@
       const data = await api('list');
       S.items = data.items || [];
       if (data.categorias && (data.categorias.gasto.length || data.categorias.ingreso.length)) S.categorias = data.categorias;
+      if (Array.isArray(data.fijos)) S.fijos = data.fijos;
       S.lastSync = Date.now(); S.error = null; save();
       if (!quiet) toast('Sincronizado con tu hoja ✓');
     } catch (e) {
@@ -263,6 +281,8 @@
         <div class="v num">${fmt(pendTot)}</div><div class="s">${pendPeople} persona${pendPeople === 1 ? '' : 's'} · ${pend.length} pendiente${pend.length === 1 ? '' : 's'}</div></div>
         <span class="chev">${ICON.right}</span></button>` : ''}
 
+      ${fijosCard(y, m)}
+
       <section class="card">
         <h3>Gastos por categoría <small>${cats.length} categoría${cats.length === 1 ? '' : 's'}</small></h3>
         ${cats.length ? catRows : `<div class="empty"><span class="e">🧾</span>Sin gastos en ${MESES[m - 1]}. Toca <b>+</b> para agregar uno.</div>`}
@@ -274,6 +294,29 @@
         ${trendChart(all)}
         <div class="hint">Toca un mes para verlo en detalle.</div>
       </section>`;
+  }
+
+  function fijosCard(y, m) {
+    if (!S.fijos.length) return '';
+    const fs = fijosDelMes(y, m);
+    const pag = fs.filter((f) => f.estado === 'pagado');
+    const falta = fs.filter((f) => f.estado !== 'pagado').reduce((s, f) => s + (f.estimado || 0), 0);
+    const pct = Math.round((pag.length / fs.length) * 100);
+    const orden = { atrasado: 0, pendiente: 1, pagado: 2 };
+    const rows = fs.slice().sort((a, b) => orden[a.estado] - orden[b.estado]).slice(0, S.showAllFijos ? 99 : 6);
+    return `<section class="card">
+      <h3>Gastos fijos <small>${pag.length} de ${fs.length} pagados</small></h3>
+      <div class="ratio" role="img" aria-label="${pct}% de los gastos fijos pagados"><span style="width:${pct}%;background:var(--ingreso)"></span></div>
+      <div class="ratio-cap">${falta ? `Falta pagar aprox. <b class="num">${fmt(falta)}</b>` : '¡Todos los fijos del mes pagados! 🎉'}</div>
+      <div style="margin-top:8px">${rows.map((f) => `
+        <button class="fijo" data-a="fijo" data-n="${esc(f.nombre)}" ${f.estado === 'pagado' ? 'disabled' : ''}>
+          <span class="st ${f.estado}">${f.estado === 'pagado' ? '✓' : f.estado === 'atrasado' ? '!' : ''}</span>
+          <span class="n">${esc(f.nombre)}<small>${f.estado === 'pagado' ? 'Pagado' : f.estado === 'atrasado' ? `Atrasado · vencía el ${f.dia}` : f.dia ? `Vence el ${f.dia}` : 'Pendiente'}</small></span>
+          <span class="a num">${f.estado === 'pagado' ? fmt(f.pagado) : f.estimado ? fmt(f.estimado) : '—'}</span>
+          ${f.estado === 'pagado' ? '' : `<span class="go">${ICON.plus}</span>`}
+        </button>`).join('')}</div>
+      ${fs.length > 6 ? `<button class="more" data-a="morefijos">${S.showAllFijos ? 'Ver menos' : `Ver los ${fs.length} fijos`}</button>` : ''}
+    </section>`;
   }
 
   function trendChart(all) {
@@ -475,8 +518,8 @@
     return [...base, ...extra].map((c, idx) => ({ c, n: used.get(c) || 0, idx })).sort((a, b) => b.n - a.n || a.idx - b.idx).map((x) => x.c);
   }
 
-  function openAdd() {
-    A = { tipo: 'Gasto', monto: '', categoria: null, descripcion: '', fecha: today(), compartido: false, conQuien: '', parte: 'nada', miParte: '', estado: 'Pendiente' };
+  function openAdd(pre = {}) {
+    A = { tipo: 'Gasto', monto: '', categoria: null, descripcion: '', fecha: today(), compartido: false, conQuien: '', parte: 'nada', miParte: '', estado: 'Pendiente', ...pre };
     const sheet = openSheet(`
       <div class="sbar"><button class="l" data-a="close">Cancelar</button>
         <div class="seg tipo" id="a-tipo"></div><span class="r"></span></div>
@@ -486,7 +529,7 @@
         <div class="lbl">Categoría</div>
         <div class="cats" id="a-cats"></div>
         <div class="lbl">Descripción</div>
-        <input class="text" id="a-desc" type="text" placeholder="Ej: almuerzo, supermercado…" autocomplete="off" enterkeyhint="done">
+        <input class="text" id="a-desc" type="text" placeholder="Ej: almuerzo, supermercado…" autocomplete="off" enterkeyhint="done" value="${esc(A.descripcion)}">
         <div class="chips sugs" id="a-sugs"></div>
         <div id="a-shared"></div>
       </div>
@@ -687,6 +730,14 @@
     monthnow: () => { S.ym = { y: now.getFullYear(), m: now.getMonth() + 1 }; render(); },
     pickmonth: (el) => { S.ym = { y: Number(el.dataset.y), m: Number(el.dataset.m) }; render(); },
     morecats: () => { S.showAllCats = !S.showAllCats; render(); },
+    morefijos: () => { S.showAllFijos = !S.showAllFijos; render(); },
+    fijo: (el) => {
+      const f = S.fijos.find((x) => x.nombre === el.dataset.n); if (!f) return;
+      const { y, m } = S.ym;
+      const esActual = y === now.getFullYear() && m === now.getMonth() + 1;
+      const fecha = esActual ? today() : `${y}-${pad(m)}-${pad(Math.min(f.dia || 1, 28))}`;
+      openAdd({ categoria: f.categoria, descripcion: f.nombre, monto: f.estimado ? String(f.estimado) : '', fecha });
+    },
     filtro: (el) => { S.filtro = el.dataset.f; render(); },
     person: (el) => { S.openPerson = S.openPerson === el.dataset.k ? null : el.dataset.k; render(); },
     detail: (el) => openDetail(el.dataset.k),
@@ -803,7 +854,14 @@
       await new Promise((r) => setTimeout(r, 250));
       const d = this.data();
       if (action === 'ping') return { ok: true };
-      if (action === 'list') return { ok: true, items: d, categorias: DEFAULT_CATS };
+      if (action === 'list') return { ok: true, items: d, categorias: DEFAULT_CATS, fijos: [
+        { nombre: 'Arriendo', categoria: 'Vivienda', estimado: 450000, claves: 'arriendo', dia: 5 },
+        { nombre: 'Internet hogar', categoria: 'Servicios básicos (luz, agua, internet)', estimado: 24990, claves: 'internet', dia: 10 },
+        { nombre: 'Cuenta de luz', categoria: 'Servicios básicos (luz, agua, internet)', estimado: 32000, claves: 'luz', dia: 15 },
+        { nombre: 'Ahorro mensual', categoria: 'Ahorro e inversión', estimado: 150000, claves: 'ahorro', dia: 25 },
+        { nombre: 'Streaming', categoria: 'Ocio y entretenimiento', estimado: 9990, claves: 'streaming', dia: 28 },
+        { nombre: 'Gimnasio', categoria: 'Salud', estimado: 25000, claves: 'gimnasio, gym', dia: 12 },
+      ] };
       if (action === 'add') {
         const it = p.item; const [y, m] = it.fecha.split('-').map(Number);
         const shared = !!it.conQuien;

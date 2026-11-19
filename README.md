@@ -51,7 +51,17 @@ apps-script/   → Code.gs, el puente entre la app y tu hoja de Google.
 | H Con quién, I Mi parte, K Estado | solo si marcas “Compartido · me deben” |
 | J Me deben, L Monto efectivo | las mismas fórmulas de la hoja |
 
-Formatos y menús desplegables se copian de la fila 2. Las categorías salen de la hoja
+Formatos, menús desplegables y fórmulas se copian de la fila 2. Las categorías salen de la hoja
 **Categorías** (si agregas una ahí, aparece en la app al sincronizar).
 
 Sin señal, el movimiento queda “por subir” en el teléfono y se envía solo al volver la conexión.
+
+## Hojas de apoyo
+
+- **Mi mes** (primera pestaña): elige el mes en la celda *Mes* ("Actual" muestra siempre el mes en curso).
+  Muestra ingresos, gastos, saldo, el checklist de gastos fijos y los movimientos de ese mes,
+  del más nuevo al más antiguo. Ya no hace falta ocultar filas en *Transacciones*.
+- **Gastos fijos**: la lista de tus pagos mensuales. Un fijo cuenta como pagado cuando en ese mes
+  hay un gasto de la misma **categoría** cuya descripción contiene alguna de sus **palabras clave**.
+  El *día de pago* es opcional; si lo pones, el fijo se marca "Atrasado" cuando ya pasó.
+  La app muestra la misma lista en el Resumen y con un toque registra el pago con el monto estimado.

@@ -310,3 +310,19 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 #toast.show { transform: translate(-50%, 0); }
 
 .banner { background: rgba(250, 178, 25, 0.18); color: var(--ink); border-radius: 14px; padding: 10px 14px; font-size: 13.5px; margin-bottom: 14px; display: flex; gap: 8px; align-items: flex-start; }
+
+/* Gastos fijos */
+.fijo { display: grid; grid-template-columns: 26px 1fr auto auto; gap: 10px; align-items: center; width: 100%; text-align: left; padding: 9px 0; }
+.fijo + .fijo { border-top: 1px solid var(--line); }
+.fijo[disabled] { cursor: default; }
+.fijo .st { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 800; box-shadow: inset 0 0 0 2px var(--axis); color: transparent; }
+.fijo .st.pagado { background: var(--ingreso); box-shadow: none; color: #fff; }
+.fijo .st.atrasado { background: #d03b3b; box-shadow: none; color: #fff; }
+.fijo .n { font-size: 15px; font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fijo .n small { display: block; font-size: 12.5px; color: var(--muted); font-weight: 400; }
+.fijo[disabled] .n { color: var(--ink-2); }
+.fijo .a { font-size: 15px; font-weight: 600; }
+.fijo[disabled] .a { color: var(--muted); font-weight: 500; }
+.fijo .go { width: 28px; height: 28px; border-radius: 50%; background: var(--card-2); display: grid; place-items: center; color: var(--ink); }
+.fijo .go svg { width: 15px; height: 15px; }
+.fijo:not([disabled]):active { background: var(--card-2); border-radius: 12px; }
